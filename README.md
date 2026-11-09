@@ -43,11 +43,12 @@ is declared in the metadata file: municipal codes change with mergers.
 | `<set_id>.metadata.json` | reference geography; for each indicator definition, unit, source variables, rule, rationale, version; when the gold layer was read; checksums |
 | `<set_id>__gold_extract.csv` | exactly what was read from the Datastore gold layer |
 | `<set_id>__gold_extract_metadata.txt` | the codebook of the extract, as returned by the Datastore |
+| `<set_id>__<name>.csv` | any other input the rule read: another gold extract (e.g. a variable on the geography of its year), or `mergers`, the crosswalk of municipal mergers read from the Datastore |
 
 The metadata file is also committed in this repository under
 `releases/<tag>/metadata.json`, so the history of every release is browsable without
-downloading anything. The extracts are not committed: they are release assets, and
-their checksum is in the metadata file.
+downloading anything. The inputs are not committed: they are release assets, and
+their checksums are in the metadata file.
 
 Full description of the format: [docs/format.md](docs/format.md).
 

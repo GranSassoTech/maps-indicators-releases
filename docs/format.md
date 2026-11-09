@@ -77,24 +77,43 @@ Territories with no value for a year have no row for that year (no empty values)
     "output":           { "name": "<set_id>.csv", "sha256": "...", "rows": 15808 },
     "extract":          { "name": "<set_id>__gold_extract.csv", "sha256": "...",
                           "canonical_sha256": "...", "rows": 15808 },
-    "extract_metadata": { "name": "<set_id>__gold_extract_metadata.txt", "sha256": "..." }
+    "extract_metadata": { "name": "<set_id>__gold_extract_metadata.txt", "sha256": "..." },
+    "inputs": [                             // every other input the rule read
+      { "name": "occ_2021_geo2021", "kind": "gold",
+        "file": "<set_id>__occ_2021_geo2021.csv", "sha256": "...", "canonical_sha256": "...", "rows": 7904,
+        "metadata_file": { "name": "<set_id>__occ_2021_geo2021_metadata.txt", "sha256": "..." },
+        "read": { /* same fields as gold_read; here reconcile_to_current: false */ } },
+      { "name": "mergers", "kind": "mergers",
+        "file": "<set_id>__mergers.csv", "sha256": "...", "canonical_sha256": "...", "rows": 338,
+        "read": { "tables": ["silver.territory_relationships (merged_into)",
+                             "silver.territory_identifiers (scheme istat)"],
+                  "target_date": "2025-12-31", "rule": "...", "read_at": "..." } }
+    ]
   },
 
+  "notes": [ "what the rule did, e.g. 012144 2021 = sum of 012009, 012018, 012095" ],
   "warnings": [ "known gaps found by the rule's checks" ],
 
   "release": {
     "tag": "abitazioni_occupate_residenti-v1.0.0-20261109",
     "repository": "https://github.com/GranSassoTech/maps-indicators-releases",
     "assets": { "output": "https://...", "metadata": "https://...",
-                "extract": "https://...", "extract_metadata": "https://..." }
+                "extract": "https://...", "extract_metadata": "https://...",
+                "inputs": { "<set_id>__mergers.csv": "https://...", "...": "..." } }
   }
 }
 ```
 
+### Mergers crosswalk — `<set_id>__mergers.csv`
+
+When a rule needs it: `predecessor_code,current_code,merged_on`, one row per municipality
+suppressed by a merger up to 31/12/2025, with the municipality it ended in (merger chains
+followed to the end). Same rule the gold layer uses to reconcile.
+
 ### Checksums
 
 - `sha256`: SHA-256 of the file bytes. Verifies a downloaded asset.
-- `extract.canonical_sha256`: SHA-256 of the extract with rows and columns sorted. Used
+- `canonical_sha256` (extract and each input): SHA-256 of the file with rows and columns sorted. Used
   to tell whether the gold layer has changed since the release, independently of row
   order.
 
