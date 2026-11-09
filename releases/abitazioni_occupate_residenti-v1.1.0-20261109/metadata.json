@@ -1,0 +1,192 @@
+{
+  "schema_version": "1",
+  "set_id": "abitazioni_occupate_residenti",
+  "version": "1.1.0",
+  "generated_at": "2026-11-09T13:51:21+00:00",
+  "format": {
+    "columns": [
+      "territory_code",
+      "indicator",
+      "year",
+      "value"
+    ],
+    "layout": "long: one row per territory, indicator and year"
+  },
+  "reference_geography": {
+    "territory_type": "comune",
+    "code_column": "territory_code",
+    "code_scheme": "ISTAT",
+    "as_of": "2025-12-31",
+    "description": "ISTAT codes of the territories in force on 31/12/2025, as delivered by the MAPS Datastore gold layer (reconcile_to_current=true): values of territories merged since are added to the territory they merged into."
+  },
+  "indicators": [
+    {
+      "id": "abitazioni_occupate_residenti",
+      "title": "Dwellings occupied by residents",
+      "definition": "Number of dwellings occupied by at least one usually resident person, from the 2011 and 2021 population and housing censuses.",
+      "unit": "dwellings",
+      "version": "1.1.0",
+      "source_variables": [
+        {
+          "attribute": "it1_df_bulk_cpo2011_dica_abit_pr_com_1_0",
+          "column_name": "occ_2011",
+          "dimension_filters": {
+            "tipo_dato_cens_pop": "NUM_DW_AV",
+            "dotazioni": "ALL",
+            "numerosita": "TOT"
+          }
+        },
+        {
+          "attribute": "it1_df_dcss_hcue_com_8_com_1_0",
+          "column_name": "occ_2021",
+          "dimension_filters": {
+            "indicator": "DW_RESPERS",
+            "freq": "A"
+          }
+        }
+      ],
+      "rule": "indicators/abitazioni_occupate_residenti/indicator.py",
+      "rationale_file": "indicators/abitazioni_occupate_residenti/rationale.md",
+      "rationale": "# Dwellings occupied by residents, 2011 and 2021\n\nIndicator: `abitazioni_occupate_residenti` · rule version 1.1.0 · owners: analysts (Davide, Giulia)\n\n> Draft written by the developers from the architecture note of 4 November 2026.\n> The analysts own this file: review, correct and sign off before the first release.\n\n## Goal\n\nOne indicator, with a value for 2011 and one for 2021 in every municipality, on the\nmunicipalities in force on 31/12/2025.\n\n## What the two censuses contain\n\n|                                              | 2011 census             | 2021 census              |\n|----------------------------------------------|-------------------------|--------------------------|\n| Total of dwellings occupied by residents     | yes                     | yes                      |\n| Breakdown by amenities                       | yes                     | no                       |\n| Breakdown by number of rooms                 | yes                     | no                       |\n| Method                                       | door-to-door enumeration| registers + sample surveys|\n\nThe only level the two have in common is the municipal total.\n\n## Choices\n\n1. **2011: total only.** Variable `it1_df_bulk_cpo2011_dica_abit_pr_com_1_0`,\n   `tipo_dato_cens_pop = NUM_DW_AV`, amenities `dotazioni = ALL`, rooms\n   `numerosita = TOT`. The breakdowns have no 2021 counterpart and are left out.\n2. **2021: `DW_RESPERS`, not `NUM_OCC_DW_AV`.** The 2021 census has two totals that\n   look alike:\n   - \"occupied dwellings\" (`NUM_OCC_DW_AV`, dataset `it1_df_dcss_abitazioni_tv_1_1_0`);\n   - \"dwellings occupied by at least one resident\" (`DW_RESPERS`, dataset\n     `it1_df_dcss_hcue_com_8_com_1_0`).\n\n   Only `DW_RESPERS` has the same definition as 2011. The two differ in 165 of 7,904\n   municipalities.\n3. **Geography.** Both values are brought to the 2025 municipalities by the Datastore\n   gold layer: values of municipalities merged since are added to the municipality\n   they merged into. The repository does not redo this, with one exception (3b).\n3b. **2021 values of merged municipalities.** The Datastore aggregates the 2021\n   variable with rule `none` (the 2011 one is `sum`), so the gold layer leaves the\n   municipalities born from 2021–2025 mergers without a 2021 value. The OpenMetadata\n   `AggregationRule` tags are already `sum`, but the Datastore does not carry them to\n   these multidimensional variables, and this repository does not change the platform.\n   The rule fills the gap itself, with the result the gold layer gives for `sum`:\n   - the same 2021 cell is read a second time from the gold layer **without\n     reconciliation** (2021 geography, input `occ_2021_geo2021`);\n   - the mergers crosswalk is read from the Datastore (`silver.territory_relationships`,\n     `merged_into` up to 31/12/2025, followed transitively; ISTAT codes from\n     `silver.territory_identifiers`): the same rule the gold layer uses (input `mergers`);\n   - a municipality with no 2021 value gets the sum of its predecessors' 2021 values,\n     plus its own if it existed. It is filled only if every predecessor that still\n     existed on 31/12/2021 has a value; otherwise it stays empty with a warning.\n   - As a check, the same sum is computed for every municipality that has a gold\n     value; any difference is reported in the warnings.\n   Each filled value is listed in the metadata `notes`, with the codes summed.\n4. **Stacking.** One row for 2011 and one for 2021 per municipality.\n5. **Whole dwellings.** Values are rounded to integers. The 2021 source carries float\n   noise on about 160 municipalities (e.g. `680.000000000001`; largest deviation below\n   1e-10), already present in the gold extract. Rounding changes no real value.\n\n## Open points\n\n- **Datastore rule for the 2021 variables.** If the Datastore aggregation rule of\n  `it1_df_dcss_hcue_com_8_com_1_0` becomes `sum`, the gold layer fills these values\n  itself and step 3b finds nothing to fill. The freshness check flags the change.\n- **Baranzate (`015250`) and Bollate (`015027`).** In the Datastore territorial data,\n  Baranzate ends on 06/03/2003 and is recorded as merged into Bollate. In fact\n  Baranzate was detached from Bollate in 2004 and still exists. As a result the gold\n  layer has no Baranzate and adds its values to Bollate in every year: Bollate is\n  19,147 in 2011 and 21,148 in 2021 (Bollate 15,892 + Baranzate 5,256). The two years\n  stay comparable, but Baranzate is missing from the indicator. To be reported to the\n  platform team; this repository does not change the Datastore. Each run flags it in\n  the metadata `warnings`.\n- **Municipalities created by detaching territory** (e.g. `001316`, `081025`). The\n  reconciliation covers mergers only: these have no 2011 value, and the\n  municipalities they came from are overstated in 2011. Analysts' choice: leave 2011\n  empty for the group, treat parent and new municipality as one unit, or split the\n  2011 value with population weights. **Current rule: left as is (2011 empty for\n  the new municipality).**\n- **Change of census method** (enumeration in 2011, registers in 2021) may affect the\n  comparability of the totals. Analysts' judgement.\n"
+    }
+  ],
+  "gold_read": {
+    "mode": "gold request",
+    "base_url": "https://datastore.maps.gransassotech.org",
+    "requested_at": "2026-11-09T13:51:21+00:00",
+    "read_at": "2026-11-09T13:51:42+00:00",
+    "request_id": 842,
+    "table_name": "ind_abitazioni_occupate_residenti_20261109135121_e83f",
+    "territory_type": "comune",
+    "year_from": 2011,
+    "year_to": 2021,
+    "reconcile_to_current": true,
+    "variables": [
+      {
+        "attribute": "it1_df_bulk_cpo2011_dica_abit_pr_com_1_0",
+        "column_name": "occ_2011",
+        "dimension_filters": {
+          "tipo_dato_cens_pop": "NUM_DW_AV",
+          "dotazioni": "ALL",
+          "numerosita": "TOT"
+        }
+      },
+      {
+        "attribute": "it1_df_dcss_hcue_com_8_com_1_0",
+        "column_name": "occ_2021",
+        "dimension_filters": {
+          "indicator": "DW_RESPERS",
+          "freq": "A"
+        }
+      }
+    ]
+  },
+  "code": {
+    "tool_version": "0.1.0",
+    "module": "indicators/abitazioni_occupate_residenti/indicator.py",
+    "commit": "df32dfd69d085a522b3387d92956944e06e26eab",
+    "dirty": false
+  },
+  "files": {
+    "output": {
+      "name": "abitazioni_occupate_residenti.csv",
+      "sha256": "65883b14f70e43785edaf2f4005919620fe7404e87770a89054d2c008fcd6508",
+      "rows": 15788
+    },
+    "extract": {
+      "name": "abitazioni_occupate_residenti__gold_extract.csv",
+      "sha256": "5c4b8d0971e6b81417c582b6f6441517ea8e70e4d50fd5023dc472775ecac5ca",
+      "canonical_sha256": "1bbc4166a31c0b3002906b67e930d2c718e16ef304fa935b4e8f7b198d7b3c60",
+      "rows": 15788
+    },
+    "extract_metadata": {
+      "name": "abitazioni_occupate_residenti__gold_extract_metadata.txt",
+      "sha256": "67147882ecbd03c50dd0ec0df640bf4aff5ea64d1a17586f059291e25948519f"
+    },
+    "inputs": [
+      {
+        "name": "occ_2021_geo2021",
+        "kind": "gold",
+        "file": "abitazioni_occupate_residenti__occ_2021_geo2021.csv",
+        "sha256": "8e70dbe03283f30c67ca25bf762ee9dda8d55eedf1e0175a232e85534dfe9fea",
+        "canonical_sha256": "c18e051e629dbbc94f95e69cb035a0793143cd86aa7a654e46d5e3c1981a9560",
+        "rows": 7904,
+        "read": {
+          "mode": "gold request",
+          "base_url": "https://datastore.maps.gransassotech.org",
+          "requested_at": "2026-11-09T13:51:43+00:00",
+          "read_at": "2026-11-09T13:52:04+00:00",
+          "request_id": 843,
+          "table_name": "ind_abitazioni_occupate_residenti_occ_2021_20261109135143_d4ed",
+          "territory_type": "comune",
+          "year_from": 2021,
+          "year_to": 2021,
+          "reconcile_to_current": false,
+          "variables": [
+            {
+              "attribute": "it1_df_dcss_hcue_com_8_com_1_0",
+              "column_name": "occ_2021",
+              "dimension_filters": {
+                "indicator": "DW_RESPERS",
+                "freq": "A"
+              }
+            }
+          ]
+        },
+        "metadata_file": {
+          "name": "abitazioni_occupate_residenti__occ_2021_geo2021_metadata.txt",
+          "sha256": "2d20db5c0afe4d2cf8adb95ebcb0e4a09873cb7b40c3dc12a1c047be0f9bbda7"
+        }
+      },
+      {
+        "name": "mergers",
+        "kind": "mergers",
+        "file": "abitazioni_occupate_residenti__mergers.csv",
+        "sha256": "f2ba7d93bcc3b3e9349ea95ec5b10bc8a3b5af662d0a8843ce4a4c98ffc4dd95",
+        "canonical_sha256": "8f25e709fc6a5145d9ba1f9c4c2b518db0fa53d286ed7e07d5c9a59c53fa39b8",
+        "rows": 337,
+        "read": {
+          "mode": "datastore tables",
+          "base_url": "https://datastore.maps.gransassotech.org",
+          "read_at": "2026-11-09T13:52:04+00:00",
+          "tables": [
+            "silver.territory_relationships (merged_into)",
+            "silver.territory_identifiers (scheme istat)"
+          ],
+          "territory_type": "comune",
+          "target_date": "2025-12-31",
+          "rule": "same as the gold layer reconciliation: transitive merged_into, valid_from up to target_date; latest ISTAT code per territory"
+        }
+      }
+    ]
+  },
+  "notes": [
+    "005122 2021 = sum of 005079, 005110 (old geography) = 182",
+    "012144 2021 = sum of 012009, 012018, 012095 (old geography) = 1499",
+    "013256 2021 = sum of 013199, 013228 (old geography) = 2792",
+    "015027 2021 = sum of 015027, 015250 (old geography) = 21148",
+    "018026 2021 = sum of 018002, 018026 (old geography) = 508",
+    "024128 2021 = sum of 024044, 024103 (old geography) = 3361",
+    "025075 2021 = sum of 025002, 025070 (old geography) = 2401",
+    "028108 2021 = sum of 028022, 028098 (old geography) = 971"
+  ],
+  "warnings": [
+    "015250 has a 2021 value but the crosswalk says it merged into 015027 on 2003-03-06: check the Datastore territorial data. The gold layer adds it to 015027 in every year, and so does this rule.",
+    "2 municipalities have 2021 but no 2011 value (e.g. 001316, 081025): new municipalities created by detaching territory are not handled by the reconciliation. See rationale.md."
+  ],
+  "release": {
+    "tag": "abitazioni_occupate_residenti-v1.1.0-20261109",
+    "repository": "https://github.com/GranSassoTech/maps-indicators-releases",
+    "assets": {
+      "output": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti.csv",
+      "metadata": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti.metadata.json",
+      "extract": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti__gold_extract.csv",
+      "extract_metadata": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti__gold_extract_metadata.txt",
+      "inputs": {
+        "abitazioni_occupate_residenti__mergers.csv": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti__mergers.csv",
+        "abitazioni_occupate_residenti__occ_2021_geo2021.csv": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti__occ_2021_geo2021.csv",
+        "abitazioni_occupate_residenti__occ_2021_geo2021_metadata.txt": "https://github.com/GranSassoTech/maps-indicators-releases/releases/download/abitazioni_occupate_residenti-v1.1.0-20261109/abitazioni_occupate_residenti__occ_2021_geo2021_metadata.txt"
+      }
+    }
+  }
+}
