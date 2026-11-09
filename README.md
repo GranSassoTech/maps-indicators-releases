@@ -51,6 +51,24 @@ their checksum is in the metadata file.
 
 Full description of the format: [docs/format.md](docs/format.md).
 
+## License
+
+The indicator files, their metadata and the gold extracts are released under the
+[Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
+license (CC BY 4.0), the license recommended for Italian public open data. Full text:
+[LICENSE](LICENSE).
+
+You can share and adapt the data for any purpose, including commercial use, as long as
+you give credit. Suggested attribution:
+
+> MAPS indicators, Gran Sasso Tech — <release tag>,
+> https://github.com/GranSassoTech/maps-indicators-releases — CC BY 4.0.
+> Source data: ISTAT (and the other sources listed in the metadata file).
+
+The source data keep the attribution required by their publishers. The sources of each
+indicator are listed in its metadata file (`source_variables`); ISTAT data are published
+under CC BY 4.0.
+
 ## Freshness
 
 A release does not follow the Datastore automatically. A scheduled job compares each
